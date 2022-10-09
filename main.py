@@ -192,14 +192,17 @@ class LCD_1inch3(framebuf.FrameBuffer):
 boost = 0
 boost_current = 0
 boost_sensor = machine.ADC(2)
-boost_input_min = -20
-boost_input_max = 30
+boost_input_min = 0.5
+boost_input_max = 43.5
+boost_array = [0, 0, 0, 0, 0]
+boost_loop = 0
+brightness = 65535
 temp_sensor = machine.ADC(4)
 temp_conversion_factor = 3.3 / (65535)
 tmp_current = 0
 pwm = PWM(Pin(BL)) # Screen Brightness
 pwm.freq(1000)
-pwm.duty_u16(16000) # max 65535 - mid value
+pwm.duty_u16(brightness) # max 65535 - mid value
 LCD = LCD_1inch3()
 back_col = 0
 
@@ -234,26 +237,27 @@ def ring(cx,cy,r,cc):   # Draws a circle - with centre (x,y), radius, color
         LCD.pixel(cx-x3,cy+y3,cc)  # 4 quadrants
         LCD.pixel(cx-x3,cy-y3,cc)
         LCD.pixel(cx+x3,cy+y3,cc)
-        LCD.pixel(cx+x3,cy-y3,cc)
+        LCD.pixel(cx+x3,cy-y3,cc) 
+    
 
 def boostColour(boostValue): # Returns the colour of the boost text based on boost value.
     boostCol = rgb_color(128,128,128)
-    if(boostValue <= -5):
+    if(boostValue <= 5):
         boostCol = rgb_color(64,0,128)
         
-    if( boostValue > -5 and boostValue <= 0 ):
+    if( boostValue > 5 and boostValue <= 10 ):
         boostCol = rgb_color(0,0,255)
         
-    if( boostValue > 0 and boostValue <= 10 ):
+    if( boostValue > 10 and boostValue <= 15 ):
         boostCol = rgb_color(0,255,0)
     
-    if( boostValue > 10 and boostValue <= 15 ):
+    if( boostValue > 15 and boostValue <= 20 ):
         boostCol = rgb_color(255,255,0)
 
-    if( boostValue > 15 and boostValue <= 18 ):
+    if( boostValue > 20 and boostValue <= 25 ):
         boostCol = rgb_color(255,128,0)
     
-    if( boostValue > 18 ):
+    if( boostValue > 25 ):
         boostCol = rgb_color(255,0,0)
         
     return boostCol
@@ -264,9 +268,6 @@ def updateBoost(): # Updates the boost value on screen and stores the old value.
     boost_positive = "Boost +Psi"
     xpos = 0
     tmp_boost = boost
-    if (boost < 0):
-        tmp_boost = boost*-1
-        boost_positive = "Boost -Psi"
         
     if tmp_boost < 10: xpos = 60
     LCD.fill_rect(0,0,240,190,back_col)
@@ -277,8 +278,8 @@ def updateBoost(): # Updates the boost value on screen and stores the old value.
 def readBoost(): # Reads the boost value from the AD pin and sets the global boost value
     tmp_boost = 0
     tmp_boost = boost_sensor.read_u16()
+    boost_voltage = boost_sensor.read_u16() * temp_conversion_factor
     display_booost = int(((tmp_boost - 0) / (65535 - 0)) * (boost_input_max - boost_input_min) + boost_input_min)
-    print(tmp_boost)
     return display_booost
 
 def updateTemp(): # Updates the temprature display with current temp.
@@ -315,42 +316,58 @@ running = True # Loop control
 
 # =========== Main loop ===============
 while(running):
-    if keyA.value() == 0:
+    if (keyA.value() == 0):
         print("A")   
         
-    if(keyB.value() == 0):
-        print("B")
+    if (keyB.value() == 0):
+        print("brightness up")
+        tmp_brightness = brightness + 4096
+        if(tmp_brightness >= 65535):
+            tmp_brightness = 65535
+        brightness = tmp_brightness
+        pwm.duty_u16(brightness)
                    
-    if(keyX.value() == 0):
-        print("X")
+    if (keyX.value() == 0):
+        print("brightness down")
+        tmp_brightness = brightness - 4096
+        if(tmp_brightness <= 4096):
+            tmp_brightness = 4096
+        brightness = tmp_brightness
+        pwm.duty_u16(brightness)
         
-    if(keyY.value() == 0):
+    if (keyY.value() == 0):
         print("Y")
        
-    if(up.value() == 0):
+    if (up.value() == 0):
         print("UP")
         
-    if(down.value() == 0):
+    if (down.value() == 0):
         print("DOWN")    
      
-    if(left.value() == 0):
+    if (left.value() == 0):
         print("LEFT")
     
-    if(right.value() == 0):
+    if (right.value() == 0):
         print("RIGHT")
     
-    if(ctrl.value() == 0):
+    if (ctrl.value() == 0):
         print("CTRL")
          
-    boost = readBoost()
-    updateBoost()
-    updateTemp()
-    LCD.show()
+    boost_array[boost_loop] = readBoost()
+    boost_loop+=1
+    
+    if (boost_loop == 5):
+        boost_loop = 0
+        boost = (boost_array[0] + boost_array[1] + boost_array[2] + boost_array[3] + boost_array[4]) // 5
+        updateBoost()
+        updateTemp()
+        LCD.show()
+    
     
     if (keyA.value() == 0) and (keyY.value() == 0): # Halt looping?
         running = False
         
-    utime.sleep(.30) # Debounce delay - reduce multiple button reads
+    utime.sleep_us(200) # Debounce delay - reduce multiple button reads
     
 # Finish
 LCD.fill(0)
