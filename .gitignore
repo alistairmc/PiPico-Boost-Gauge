@@ -130,3 +130,7 @@ dmypy.json
 
 # History Folder
 .history
+.vscode/settings.json
+.vscode/Pico-W-Stub
+.picowgo
+.vscode/extensions.json
